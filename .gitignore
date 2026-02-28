@@ -10,3 +10,6 @@ __pycache__/
 
 # CGP testbestanden (PDS2000, projectspecifiek)
 *.cgp
+
+# PyCharm projectbestanden
+.idea/
