@@ -273,14 +273,20 @@ def lat_to_taw(df):
 #   2 kolommen : alleen X en Y
 #   3 kolommen : X, Y en Z  (of punt-ID, X, Y als eerste kolom punt is)
 #   4 kolommen : X, Y, Z en een extra variabele  (of punt-ID, X, Y, Z)
+#
+# heeft_naam_kolom: overschrijft de checkbox. CGP-bestanden hebben altijd een
+#   naamkolom; die wordt dan automatisch correct behandeld ongeacht de checkbox.
 # -----------------------------------------------------------------------------
-def _verwerk_chunk(chunk, transformer, x_header, y_header):
+def _verwerk_chunk(chunk, transformer, x_header, y_header, heeft_naam_kolom=None):
     aantal_kolommen = len(chunk.columns)
 
+    # heeft_naam_kolom: None = gebruik de checkbox-waarde, anders forceer True/False.
     # chunk.iloc[:, 0] betekent: alle rijen (:), kolom 0
     # .values geeft een numpy-array terug, wat sneller werkt met pyproj
     # transform() geeft twee arrays terug: de getransformeerde X en Y waarden
-    if not eerste_kolom_naam_switch.get():
+    if heeft_naam_kolom is None:
+        heeft_naam_kolom = eerste_kolom_naam_switch.get()
+    if not heeft_naam_kolom:
         # standaard: kolom 0 = X, kolom 1 = Y
         x_output, y_output = transformer.transform(
             chunk.iloc[:, 0].values,
@@ -299,7 +305,7 @@ def _verwerk_chunk(chunk, transformer, x_header, y_header):
         df_output = pd.DataFrame({x_header: x_output, y_header: y_output})
 
     elif aantal_kolommen == 3:
-        if not eerste_kolom_naam_switch.get():
+        if not heeft_naam_kolom:
             # kolom 2 is de Z-waarde (hoogte/diepte)
             df_output = pd.DataFrame({
                 x_header: x_output,
@@ -315,7 +321,7 @@ def _verwerk_chunk(chunk, transformer, x_header, y_header):
             })
 
     elif aantal_kolommen == 4:
-        if not eerste_kolom_naam_switch.get():
+        if not heeft_naam_kolom:
             # kolom 2 = Z, kolom 3 = extra variabele
             df_output = pd.DataFrame({
                 x_header: x_output,
@@ -394,7 +400,8 @@ def conversie_een_bestand(input_pad, output_pad: str):
     # die lezen we in één keer in zonder chunking.
     if Path(input_pad).suffix.lower() == ".cgp":
         df = cgp_to_dataframe(input_pad)
-        df_output = _verwerk_chunk(df, transformer, x_header, y_header)
+        # CGP heeft altijd een naamkolom (kolom 0), ongeacht de checkbox
+        df_output = _verwerk_chunk(df, transformer, x_header, y_header, heeft_naam_kolom=True)
 
         # WKT-EXPORT (Well-Known Text) — optie voor PDS2000-gebruikers
         # ---------------------------------------------------------------
