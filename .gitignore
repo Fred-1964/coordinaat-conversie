@@ -7,3 +7,6 @@ build/
 # Python cache
 __pycache__/
 *.pyc
+
+# CGP testbestanden (PDS2000, projectspecifiek)
+*.cgp
