@@ -33,6 +33,7 @@ import functools
 from typing import Literal
 from pyproj import Transformer
 from pathlib import Path
+from shapely.geometry import Polygon
 
 
 # =============================================================================
@@ -96,7 +97,7 @@ lst_separator_output = ('komma(decimaal punt)', 'spatie(decimaal punt)', 'tab(de
                         'punt-komma(decimaal komma)', 'punt-komma(decimaal punt)')
 # Beschikbare uitvoerextensies: de bestandsnaam blijft gelijk, enkel de
 # extensie wordt vervangen door de keuze van de gebruiker.
-lst_extensies = ('.asc', '.xyz', '.txt', '.csv', '.pts')
+lst_extensies = ('.asc', '.xyz', '.txt', '.csv', '.pts', '.wkt')
 
 # -----------------------------------------------------------------------------
 # CRS-CODES (Coordinate Reference System)
@@ -377,14 +378,32 @@ def conversie_een_bestand(input_pad, output_pad: str):
     x_header, y_header = HEADERS[combo_conv_out.get()]
 
     # Transformer aanmaken: berekent de wiskundige projectie tussen de twee stelsels.
-    # always_xy=True zorgt dat de volgorde altijd X,Y is (en niet lat/lon omgewisseld).
-    transformer = Transformer.from_crs(coord_in, coord_out, always_xy=True)
+    # always_xy=True wordt hier NIET gebruikt: pyproj volgt dan de officiële volgorde
+    # van het CRS (bijv. lat/lon voor WGS84). In België/Europa is de notatie
+    # 51.xxxx, 4.xxxx (breedtegraad eerst) gangbaarder, wat overeenkomt met die volgorde.
+    transformer = Transformer.from_crs(coord_in, coord_out)
 
     # CGP-bestanden hebben een apart inleesformaat en zijn doorgaans klein:
     # die lezen we in één keer in zonder chunking.
     if Path(input_pad).suffix.lower() == ".cgp":
         df = cgp_to_dataframe(input_pad)
         df_output = _verwerk_chunk(df, transformer, x_header, y_header)
+
+        # WKT-EXPORT (Well-Known Text) — optie voor PDS2000-gebruikers
+        # ---------------------------------------------------------------
+        # WKT is een standaard tekstformaat om geometrieën te beschrijven,
+        # bijv. POLYGON ((4.123 51.456, 4.124 51.457, ...))
+        # Dit is een niche-optie die enkel gebruikt wordt in het hydrografisch
+        # programma PDS2000 (Teledyne RESON). Daarin definieert een CGP-bestand
+        # een werkgebied (polygon) en kan dat als WKT worden geïmporteerd.
+        # De WKT wordt opgebouwd uit de geconverteerde X- en Y-kolommen.
+        if Path(output_pad).suffix.lower() == ".wkt":
+            coords = list(df_output.iloc[:, :2].itertuples(index=False, name=None))
+            poly = Polygon(coords)
+            with open(output_pad, 'w') as f:
+                f.write(poly.wkt)
+            return  # klaar, geen CSV-schrijven meer nodig
+
         df_output.to_csv(output_pad, index=False, sep=separator_out,
                          decimal=decimal_out, header=header_output_switch.get())
         return  # klaar, geen verdere verwerking nodig

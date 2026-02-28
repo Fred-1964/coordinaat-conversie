@@ -185,8 +185,9 @@ def conversie(input_file, output_file):
     coord_out = CRS_CODES[combo_conv_out.get()]#output variabele om conversie te doen
     x_header, y_header = HEADERS[combo_conv_out.get()]#variabele met de headers outputfile
 
-    transform_to_output = Transformer.from_crs(coord_in, coord_out, always_xy=True)#de eigenlijke conversie van het ene naar het
-                                                                                   #andere coordstelsel
+    # always_xy=True wordt NIET gebruikt: pyproj volgt de officiële CRS-volgorde
+    # (lat/lon voor WGS84). In België/Europa is 51.xxxx, 4.xxxx gangbaarder.
+    transform_to_output = Transformer.from_crs(coord_in, coord_out)  # conversie tussen coordinaatstelsels
 
     #waarden worden naargelang het aantal kolommen in een nieuw dataFrame gezet
     if not eerste_kolom_naam_switch.get():
