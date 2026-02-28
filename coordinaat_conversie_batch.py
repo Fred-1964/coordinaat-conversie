@@ -206,6 +206,11 @@ def cgp_to_dataframe(filename: str) -> pd.DataFrame:
 
     # Spaties verwijderen uit de eerste kolom (bevat de puntnamen)
     df.iloc[:, 0] = df.iloc[:, 0].str.replace(" ", "", regex=False)
+
+    # Kolommen 1 t/m einde zijn coördinaten: converteren naar float.
+    # Bij pd.read_csv gebeurt dit automatisch via de decimal-parameter,
+    # maar hier lezen we handmatig in als strings, dus we doen het expliciet.
+    df.iloc[:, 1:] = df.iloc[:, 1:].apply(pd.to_numeric)
     return df
 
 
