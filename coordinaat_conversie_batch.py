@@ -412,7 +412,7 @@ def conversie_een_bestand(input_pad, output_pad: str):
         # een werkgebied (polygon) en kan dat als WKT worden geïmporteerd.
         # De WKT wordt opgebouwd uit de geconverteerde X- en Y-kolommen.
         if Path(output_pad).suffix.lower() == ".wkt":
-            coords = list(df_output.iloc[:, :2].itertuples(index=False, name=None))
+            coords = list(df_output[[x_header, y_header]].itertuples(index=False, name=None))
             poly = Polygon(coords)
             with open(output_pad, 'w') as f:
                 f.write(poly.wkt)
