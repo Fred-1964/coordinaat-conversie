@@ -29,6 +29,8 @@ from tkinter import filedialog
 from tkinter import StringVar
 import sys
 import threading
+import functools
+from typing import Literal
 from pyproj import Transformer
 from pathlib import Path
 
@@ -363,7 +365,7 @@ def _verwerk_chunk(chunk, transformer, x_header, y_header):
 #   - eerste chunk : mode='w' (nieuw bestand aanmaken), header optioneel
 #   - volgende chunks: mode='a' (toevoegen aan bestaand bestand), geen header
 # -----------------------------------------------------------------------------
-def conversie_een_bestand(input_pad, output_pad):
+def conversie_een_bestand(input_pad, output_pad: str):
     separator_in,  decimal_in  = scheidingsteken_ophalen()
     separator_out, decimal_out = scheidingsteken_geven()
 
@@ -413,7 +415,7 @@ def conversie_een_bestand(input_pad, output_pad):
         #   volgende chunks → 'a': achteraan toevoegen aan het bestand
         # De header (kolomnamen) schrijven we enkel bij de eerste chunk.
         schrijf_header = header_output_switch.get() and eerste_chunk
-        mode = 'w' if eerste_chunk else 'a'
+        mode: Literal["w", "a"] = 'w' if eerste_chunk else 'a'
 
         df_output.to_csv(output_pad, index=False, sep=separator_out,
                          decimal=decimal_out, header=schrijf_header, mode=mode)
@@ -489,9 +491,9 @@ def _batch_thread():
     for i, bestand in enumerate(input_files, start=1):
         try:
             # Status updaten via root.after: veilige manier om GUI aan te passen
-            # vanuit een thread. De lambda vangt i en t op als standaardwaarden
-            # zodat ze niet veranderen als de lus verder loopt (late binding fix).
-            root.after(0, lambda i=i, t=totaal: status_var.set(f"Bezig... {i}/{t}"))
+            # vanuit een thread. De string wordt meteen berekend en via partial
+            # doorgegeven als nul-argumenten callable (thread-safe, type-correct).
+            root.after(0, functools.partial(status_var.set, f"Bezig... {i}/{totaal}"))  # type: ignore[arg-type]
 
             output_pad = output_bestandsnaam(bestand)
             conversie_een_bestand(bestand, output_pad)
@@ -500,15 +502,14 @@ def _batch_thread():
             # Bij een fout: foutmelding tonen en de batch stopzetten.
             # We geven de bestandsnaam en foutmelding mee in de lambda.
             naam = Path(bestand).name
-            root.after(0, lambda e=e, n=naam: tkinter.messagebox.showerror(
-                'Foutje', f'Fout bij bestand:\n{n}\n\n{e}'))
-            root.after(0, lambda i=i, t=totaal: status_var.set(f"Fout bij bestand {i}/{t}"))
-            root.after(0, lambda: btn_run.config(state="normal"))
+            root.after(0, functools.partial(tkinter.messagebox.showerror, 'Foutje', f'Fout bij bestand:\n{naam}\n\n{e}'))  # type: ignore[arg-type]
+            root.after(0, functools.partial(status_var.set, f"Fout bij bestand {i}/{totaal}"))  # type: ignore[arg-type]
+            root.after(0, functools.partial(btn_run.config, state="normal"))  # type: ignore[arg-type]
             return  # stop de lus, ga niet verder met de rest
 
     # Alle bestanden succesvol verwerkt
-    root.after(0, lambda t=totaal: status_var.set(f"Klaar! {t}/{t} bestanden geconverteerd."))
-    root.after(0, lambda: btn_run.config(state="normal"))
+    root.after(0, functools.partial(status_var.set, f"Klaar! {totaal}/{totaal} bestanden geconverteerd."))  # type: ignore[arg-type]
+    root.after(0, functools.partial(btn_run.config, state="normal"))  # type: ignore[arg-type]
 
 
 # =============================================================================
@@ -660,7 +661,7 @@ lb_bestanden.grid(row=0, column=0, sticky="nsew")
 # Scrollbar koppelen aan de listbox:
 #   command=lb_bestanden.yview : scrollbar stuurt de listbox aan
 #   yscrollcommand=scrollbar.set : listbox stuurt de scrollbar positie bij
-scrollbar_lb = tk.Scrollbar(frame_lb, orient=tk.VERTICAL, command=lb_bestanden.yview)
+scrollbar_lb = tk.Scrollbar(frame_lb, orient="vertical", command=lb_bestanden.yview)
 scrollbar_lb.grid(row=0, column=1, sticky="ns")
 lb_bestanden.config(yscrollcommand=scrollbar_lb.set)
 
