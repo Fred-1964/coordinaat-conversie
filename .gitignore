@@ -1,6 +1,5 @@
-# PyInstaller build- en outputmappen
+# PyInstaller build map
 build/
-dist/
 
 # Python virtual environment
 .venv/
