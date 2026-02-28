@@ -1,0 +1,10 @@
+# PyInstaller build- en outputmappen
+build/
+dist/
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
