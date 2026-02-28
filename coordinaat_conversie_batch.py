@@ -202,7 +202,9 @@ def cgp_to_dataframe(filename: str) -> pd.DataFrame:
 
     # Elke tekstlijn splitsen op komma en van de resulterende lijsten een
     # DataFrame maken. Elke deellijst wordt één rij in de tabel.
-    df = pd.DataFrame([line.split(",") for line in lines])
+    # dtype=object voorkomt dat pandas 2.x kolommen als StringDtype opslaat,
+    # zodat de float-conversie hieronder correct werkt.
+    df = pd.DataFrame([line.split(",") for line in lines], dtype=object)
 
     # Spaties verwijderen uit de eerste kolom (bevat de puntnamen)
     df.iloc[:, 0] = df.iloc[:, 0].str.replace(" ", "", regex=False)
