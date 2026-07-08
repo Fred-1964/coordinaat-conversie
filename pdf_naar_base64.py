@@ -15,6 +15,9 @@
 # die eerder handmatig gebruikt werd:
 #   ID;B01;B02;...;B50
 #   bestandsnaam.pdf;<chunk1>;<chunk2>;...;;
+#
+# Bestaat het gekozen CSV-bestand al, dan worden de nieuwe rijen ONDERAAN
+# toegevoegd (append); het bestand wordt dus niet overschreven.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -200,7 +203,13 @@ def run_conversie():
 #   - Eerst worden ALLE rijen berekend en verzameld in een lijst.
 #   - Pas daarna wordt het CSV-bestand geschreven.
 #   Zo blijft een bestaand CSV-bestand intact als één van de PDF's een
-#   fout geeft (bijv. te groot): er staat nooit een half bestand op schijf.
+#   fout geeft (bijv. te groot): er wordt dan niets weggeschreven.
+#
+# Het bestand wordt geopend in append-modus ("a"): nieuwe rijen komen
+# onderaan het bestaande bestand te staan. Bestaat het bestand nog niet
+# (of is het leeg), dan wordt eerst de kopregel geschreven; anders staat
+# die er al en slaan we hem over (een dubbele kopregel zou in Power BI
+# als datarij ingelezen worden).
 #
 # Het csv-module detail "newline=''" bij open(): het csv-module regelt zelf
 # de regeleindes (\r\n volgens de CSV-standaard). Zonder newline='' zou
@@ -234,9 +243,15 @@ def _conversie_thread():
         # f"B{n:02d}" formatteert het nummer met voorloopnul: 1 -> "B01"
         kopregel = ["ID"] + [f"B{n:02d}" for n in range(1, AANTAL_KOLOMMEN + 1)]
 
-        with open(output_file.get(), "w", newline="", encoding="utf-8") as f:
+        # Kopregel is alleen nodig als het bestand nog niet bestaat of leeg is
+        # (st_size is de bestandsgrootte in bytes).
+        uitvoer_pad = Path(output_file.get())
+        kopregel_nodig = not uitvoer_pad.exists() or uitvoer_pad.stat().st_size == 0
+
+        with open(uitvoer_pad, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f, delimiter=CSV_SEPARATOR)
-            writer.writerow(kopregel)
+            if kopregel_nodig:
+                writer.writerow(kopregel)
             writer.writerows(rijen)
 
     except Exception as e:
@@ -248,7 +263,7 @@ def _conversie_thread():
         return
 
     # Alles gelukt
-    root.after(0, functools.partial(status_var.set, f"Klaar! {totaal}/{totaal} PDF's omgezet."))
+    root.after(0, functools.partial(status_var.set, f"Klaar! {totaal}/{totaal} PDF's toegevoegd aan CSV."))
     root.after(0, functools.partial(btn_run.config, state="normal"))
 
 
@@ -284,10 +299,13 @@ def open_output_file():
     # map én bestandsnaam in één keer. defaultextension voegt automatisch
     # .csv toe als de gebruiker geen extensie typt. initialfile is de
     # voorgestelde naam (zelfde als het bestaande Power BI-bestand).
+    # confirmoverwrite=False: geen "Vervangen?"-waarschuwing bij een bestaand
+    # bestand, want er wordt niet overschreven maar toegevoegd (append).
     status_var.set("")
     pad = filedialog.asksaveasfilename(
         defaultextension=".csv",
         initialfile="BaggerviewBase64data.csv",
+        confirmoverwrite=False,
         filetypes=[('csv Bestanden', '.csv'), ('All Files', '.*')]
     )
     if pad:
@@ -342,7 +360,7 @@ f2.grid_rowconfigure(0, weight=1)     # rij 0 van f2 (de listbox) mag verticaal 
 f3 = tk.Frame(root)
 f3.grid(row=1, column=0, sticky=tk.NE, padx=2, pady=3)
 
-f4 = tk.LabelFrame(root, relief="groove", text="Uitvoer CSV Bestand", font="bold")
+f4 = tk.LabelFrame(root, relief="groove", text="Uitvoer CSV Bestand (rijen worden toegevoegd)", font="bold")
 f4.grid(row=1, column=1, sticky="new", padx=2, pady=5)
 f4.grid_columnconfigure(0, weight=1)
 
