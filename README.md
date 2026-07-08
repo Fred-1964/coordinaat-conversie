@@ -41,3 +41,25 @@ Geen installatie nodig — gewoon dubbelklikken en starten.
 ### Uitvoerbestand
 - Kies zelf naam en locatie
 - Ondersteunde formaten: `.asc`, `.xyz`, `.wkt`
+
+---
+
+## Extra tool: PDF naar Base64 Converter (Power BI)
+
+`pdf_naar_base64.exe` zet één of meerdere PDF-bestanden om naar base64-tekst
+in een CSV-bestand dat rechtstreeks in Power BI ingelezen kan worden.
+
+### Werking
+- Elke PDF wordt één rij in de CSV: `ID;B01;B02;...;B50`
+- De **ID** is de bestandsnaam (inclusief `.pdf`)
+- De base64-tekst wordt opgeknipt in stukken van 32.759 tekens verdeeld
+  over de kolommen B01 t/m B50, omdat Power BI maximaal 32.766 tekens
+  per tekstveld toelaat. In Power BI worden de kolommen weer samengevoegd.
+- Maximale bestandsgrootte: ~1,2 MB per PDF (50 kolommen × 32.759 tekens)
+
+### Toevoegen in plaats van overschrijven
+Bestaat het gekozen CSV-bestand al, dan worden nieuwe rijen **onderaan
+toegevoegd** (append) — het bestand wordt niet overschreven. De kopregel
+wordt alleen geschreven als het bestand nieuw of leeg is.
+
+Let op: dezelfde PDF twee keer converteren geeft twee rijen met dezelfde ID.
