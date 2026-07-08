@@ -13,3 +13,9 @@ __pycache__/
 
 # PyCharm projectbestanden
 .idea/
+
+# Testdata PDF naar Base64 converter (PDF's en referentie-CSV)
+files_base64_prog/
+
+# Gedownloade zip-archieven
+*.zip
