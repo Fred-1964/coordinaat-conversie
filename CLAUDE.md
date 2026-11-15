@@ -22,13 +22,15 @@ Alles draait via de virtualenv in `.venv` (Python 3.13):
 
 Er zijn geen tests en geen linter. Na een codewijziging hoort de bijbehorende exe opnieuw gebouwd te worden; zowel het script als `dist\*.exe` worden gecommit (de exes zitten in git).
 
-### Mac-versie (toegevoegd november 2026)
+### Mac-versies (toegevoegd november 2026)
 
-De Mac-app wordt **niet lokaal op Windows gebouwd**: PyInstaller kan niet kruislings bouwen. Dat doet GitHub Actions op een Apple Silicon-runner (`macos-15`, arm64):
+De Mac-apps (v3 én batch) worden **niet lokaal op Windows gebouwd**: PyInstaller kan niet kruislings bouwen. Dat doet GitHub Actions op een Apple Silicon-runner (`macos-15`, arm64):
 
-- Workflow: `.github/workflows/build-mac.yml`. Start automatisch bij een push die `coordinaat_conversie_v3_mac.py`, de Mac-spec, het `.icns`-icoon of de workflow zelf wijzigt; handmatig via Actions > "Bouw Mac-app" > "Run workflow".
-- Resultaat: artifact `Coordinaat-Conversie-v3-Mac` (zip met `Coordinaat Conversie v3.app`). De Mac-app zit dus **niet** in `dist\` in git.
-- De workflow controleert zelf: arm64, geldige ondertekening, `--zelftest` (script én ingepakte app) en of het venster open blijft.
+- Workflow: `.github/workflows/build-mac.yml`. Eén workflow bouwt beide apps via een **matrix** (één job per app). Start automatisch bij een push die een `*_mac.py`, een `*_mac.spec`, het `.icns`-icoon of de workflow zelf wijzigt; handmatig via Actions > "Bouw Mac-app" > "Run workflow".
+- Resultaat: artifacts `Coordinaat-Conversie-v3-Mac` en `Coordinaat-Conversie-Batch-Mac` (elk een zip met de `.app`). De Mac-apps zitten dus **niet** in `dist\` in git.
+- **Release `mac-laatste`**: na een geslaagde build op `main` zet de job `release` beide zips in deze ene, "rollende" release (oude release + tag worden verwijderd en opnieuw aangemaakt). Niet op werkbranches. De release is bewust niet "Latest", zodat de Windows-releases (`v1.1-single`, `v1.1-batch`) dat label houden. Maak of wijzig deze release dus nooit met de hand: de workflow overschrijft ze.
+- De workflow controleert zelf per app: arm64, geldige ondertekening, `--zelftest` (script én ingepakte app) en of het venster open blijft.
+- Een nieuwe Mac-app toevoegen = een regel bij `matrix.include` en bij `paths` in de workflow.
 
 Op een Mac zelf bouwen kan ook:
 
@@ -36,17 +38,19 @@ Op een Mac zelf bouwen kan ook:
 pip install pandas pyproj shapely pyinstaller
 python coordinaat_conversie_v3_mac.py --zelftest
 pyinstaller coordinaat_conversie_v3_mac.spec --noconfirm
+# idem voor de batch-versie: coordinaat_conversie_batch_mac.py / .spec
 ```
 
 ## Structuur
 
-Drie **zelfstandige Tkinter GUI-tools**, elk één script + één PyInstaller-spec + één exe in `dist\`, plus één **Mac-variant** van de v3-tool. Er zijn geen gedeelde modules: patronen zoals `resource_path()`, het rechtermuisklik-menu en de achtergrond-thread zijn bewust gekopieerd tussen de scripts, zodat elk script op zichzelf staat.
+Drie **zelfstandige Tkinter GUI-tools**, elk één script + één PyInstaller-spec + één exe in `dist\`, plus **Mac-varianten** van de twee conversietools. Er zijn geen gedeelde modules: patronen zoals `resource_path()`, het rechtermuisklik-menu en de achtergrond-thread zijn bewust gekopieerd tussen de scripts, zodat elk script op zichzelf staat.
 
 | Script | Doel |
 |---|---|
 | `coordinaat_conversie_v3.py` | Coördinaatconversie van één bestand (L72, UTM31, WGS84, L2008), met reductievlakcorrectie (LAT/TAW). Gebruikt pyproj, pandas, shapely. |
 | `coordinaat_conversie_batch.py` | Zelfde conversies, meerdere bestanden tegelijk. |
 | `coordinaat_conversie_v3_mac.py` | Mac-versie (Apple Silicon) van `coordinaat_conversie_v3.py`. Zelfde rekenlogica, alleen de OS-afhankelijke delen verschillen. |
+| `coordinaat_conversie_batch_mac.py` | Mac-versie (Apple Silicon) van `coordinaat_conversie_batch.py`. |
 | `pdf_naar_base64.py` | PDF's naar base64-chunks in een CSV voor Power BI. Alleen standaardbibliotheek. |
 
 Gedeelde patronen in alle drie:
@@ -54,17 +58,19 @@ Gedeelde patronen in alle drie:
 - **`resource_path()`**: pad naar het icoon (`coordinaat_conversie.ico`) dat werkt als .py én als exe (via `sys._MEIPASS`). Het icoon moet daarom in de spec onder `datas` staan.
 - **Verwerking in een achtergrond-thread**: Tkinter is niet thread-safe; GUI-updates vanuit de thread lopen altijd via `root.after(0, functools.partial(...))`.
 
-## Mac-versie: verschillen met de Windows-versie
+## Mac-versies: verschillen met de Windows-versies
 
-`coordinaat_conversie_v3_mac.py` is een **kopie** van `coordinaat_conversie_v3.py` (bewust geen gedeelde module, zie hierboven). Een wijziging in de rekenlogica moet dus in **beide** scripts gebeuren. Bovenaan het Mac-script staat het volledige overzicht; kort:
+`coordinaat_conversie_v3_mac.py` en `coordinaat_conversie_batch_mac.py` zijn **kopieën** van hun Windows-script (bewust geen gedeelde module, zie hierboven). Een wijziging in de rekenlogica moet dus telkens in **het Windows- én het Mac-script** gebeuren. Bovenaan elk Mac-script staat het volledige overzicht, en elke afwijking is in de code gemarkeerd met `MAC:`. Kort:
 
 - **Geen `resource_path()` / `root.iconbitmap()`**: een `.ico` geeft op macOS een fout. Het icoon is `coordinaat_conversie.icns` en wordt door `BUNDLE` in de spec in de app gezet.
-- **`open_bestand()`** (commando `open`) in plaats van `os.startfile()`.
+- **`open_bestand()`** (commando `open`) in plaats van `os.startfile()` (alleen v3; de batch-versie opent geen bestanden).
 - **`bind_contextmenu()`**: rechtsklik is `<Button-2>`, `<Button-3>` én `<Control-Button-1>`.
 - **Donkere modus**: lichtgele velden hebben uitdrukkelijk `fg="black"`; het statuslabel heeft geen vaste achtergrondkleur.
 - **Bestandsvensters**: `'*'` in plaats van `'.*'` voor alle bestanden, een gecombineerd filter vooraan, en "Annuleren" wordt afgevangen.
-- **`--zelftest`**: zet één bekend L72-punt om naar WGS84 en stopt met exitcode 0 of 1. Wijzigt de standaardconversie of de uitvoeropmaak, dan moet `zelftest()` mee aangepast worden.
-- **Spec**: onedir (`EXE` > `COLLECT` > `BUNDLE`), `target_arch='arm64'`, `upx=False`. De app is alleen ad-hoc ondertekend (geen Apple Developer-account), dus Gatekeeper blokkeert de eerste start; de README legt uit hoe je dat oplost.
+- **`--zelftest`**: zet een bekend L72-punt om naar WGS84 en stopt met exitcode 0 of 1. Wijzigt de uitvoeropmaak, dan moet de zelftest mee aangepast worden.
+  - v3: `zelftest()` roept `conversie()` rechtstreeks aan, zonder event loop.
+  - batch: `zelftest_starten()` roept `run_batch()` aan (dus mét achtergrond-thread), laat `mainloop()` draaien en kijkt via `root.after()` elke 100 ms of het statuslabel "Klaar!" toont. `messagebox.showerror` wordt tijdens de test vervangen, anders wacht een foutvenster op een klik.
+- **Spec** (beide): onedir (`EXE` > `COLLECT` > `BUNDLE`), `target_arch='arm64'`, `upx=False`. De app is alleen ad-hoc ondertekend (geen Apple Developer-account), dus Gatekeeper blokkeert de eerste start; de README legt uit hoe je dat oplost.
 
 ## Domeinkennis
 
