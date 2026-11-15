@@ -28,13 +28,15 @@ Geen installatie nodig — gewoon dubbelklikken en starten.
 
 ### Mac-versies (Apple Silicon: M1, M2, M3, M4)
 
-De Mac-apps worden automatisch gebouwd door GitHub. Python hoeft niet op de Mac te staan.
+De Mac-apps worden automatisch gebouwd en getest door GitHub. Python hoeft niet op de Mac te staan.
 
-1. Ga naar het tabblad [Actions](../../actions/workflows/build-mac.yml) en open de bovenste geslaagde run (groen vinkje).
-2. Download onderaan bij **Artifacts** het gewenste bestand (je moet ingelogd zijn op GitHub):
-   - `Coordinaat-Conversie-v3-Mac` — één bestand per keer
-   - `Coordinaat-Conversie-Batch-Mac` — meerdere bestanden tegelijk
-3. Pak het uit (twee keer dubbelklikken: er zit een zip in een zip) en sleep de app naar de map **Apps**.
+1. Ga naar de release [Mac-apps (laatste build)](../../releases/tag/mac-laatste).
+2. Download onder **Assets** het gewenste bestand:
+   - `Coordinaat-Conversie-v3-Mac.zip` — één bestand per keer
+   - `Coordinaat-Conversie-Batch-Mac.zip` — meerdere bestanden tegelijk
+3. Pak het uit (dubbelklikken) en sleep de app naar de map **Apps**.
+
+Deze release wordt bij elke wijziging aan de Mac-versies automatisch vervangen door de nieuwste build.
 
 **Eerste keer openen** (voor elke app één keer). De app is niet door Apple gekeurd (dat vereist een betaald ontwikkelaarsaccount), dus macOS houdt hem de eerste keer tegen:
 

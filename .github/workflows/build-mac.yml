@@ -14,9 +14,11 @@
 #   - handmatig: tabblad Actions > "Bouw Mac-app" > knop "Run workflow"
 #
 # Waar vind ik de apps?
-#   Tabblad Actions > de laatste geslaagde run > onderaan bij "Artifacts":
-#   "Coordinaat-Conversie-v3-Mac" en "Coordinaat-Conversie-Batch-Mac".
-#   Zie README.md voor het openen op de Mac.
+#   Op de Releases-pagina, in de release "mac-laatste". Die wordt na elke
+#   geslaagde build op de hoofdbranch (main) automatisch vervangen door de
+#   nieuwste versie (zie de job 'release' onderaan).
+#   Voor een build op een andere branch: tabblad Actions > de run > onderaan
+#   bij "Artifacts". Zie README.md voor het openen op de Mac.
 # =============================================================================
 name: Bouw Mac-app
 
@@ -119,3 +121,59 @@ jobs:
           name: schermafbeelding-${{ matrix.script }}
           path: schermafbeelding-${{ matrix.script }}.png
           if-no-files-found: ignore
+
+  # ===========================================================================
+  # RELEASE: de twee zips in een vaste release zetten
+  # ===========================================================================
+  # Een "artifact" (hierboven) verdwijnt na 90 dagen. Een "release" blijft
+  # staan en heeft een vaste downloadlink. Deze job zet de twee zips daarom in
+  # de release "mac-laatste".
+  #
+  #   needs: bouw      -> draait pas als BEIDE apps gebouwd en getest zijn.
+  #                       Mislukt er één, dan blijft de oude release staan.
+  #   if: ... main     -> alleen op de hoofdbranch; een werkbranch mag de
+  #                       release niet overschrijven.
+  #   contents: write  -> alleen deze job mag in de repository schrijven
+  #                       (nodig om een release te maken). De bouw-jobs
+  #                       blijven alleen-lezen.
+  #
+  # Het is een "rollende" release: de oude wordt verwijderd en opnieuw
+  # aangemaakt, zodat de tag altijd naar de laatst gebouwde code wijst.
+  # --latest=false: de Windows-releases houden het label "Latest".
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release bijwerken
+    needs: bouw
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: mac-laatste
+    steps:
+      - name: Zips ophalen uit de bouw-jobs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Coordinaat-Conversie-*-Mac
+          merge-multiple: true
+
+      - name: Controle - zijn beide zips er?
+        run: |
+          ls -l
+          test -f Coordinaat-Conversie-v3-Mac.zip
+          test -f Coordinaat-Conversie-Batch-Mac.zip
+
+      - name: Oude release verwijderen (als die bestaat)
+        run: gh release delete "$TAG" --cleanup-tag --yes || true
+
+      - name: Nieuwe release maken
+        run: |
+          gh release create "$TAG" \
+            Coordinaat-Conversie-v3-Mac.zip \
+            Coordinaat-Conversie-Batch-Mac.zip \
+            --target "$GITHUB_SHA" \
+            --latest=false \
+            --title "Mac-apps (Apple Silicon) - laatste build" \
+            --notes "Automatisch gebouwd en getest door GitHub Actions voor Macs met Apple Silicon (M1 t/m M4). Deze release wordt bij elke nieuwe build vervangen. Zie de README voor het openen van de apps op de Mac."

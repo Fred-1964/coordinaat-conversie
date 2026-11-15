@@ -28,6 +28,7 @@ De Mac-apps (v3 én batch) worden **niet lokaal op Windows gebouwd**: PyInstalle
 
 - Workflow: `.github/workflows/build-mac.yml`. Eén workflow bouwt beide apps via een **matrix** (één job per app). Start automatisch bij een push die een `*_mac.py`, een `*_mac.spec`, het `.icns`-icoon of de workflow zelf wijzigt; handmatig via Actions > "Bouw Mac-app" > "Run workflow".
 - Resultaat: artifacts `Coordinaat-Conversie-v3-Mac` en `Coordinaat-Conversie-Batch-Mac` (elk een zip met de `.app`). De Mac-apps zitten dus **niet** in `dist\` in git.
+- **Release `mac-laatste`**: na een geslaagde build op `main` zet de job `release` beide zips in deze ene, "rollende" release (oude release + tag worden verwijderd en opnieuw aangemaakt). Niet op werkbranches. De release is bewust niet "Latest", zodat de Windows-releases (`v1.1-single`, `v1.1-batch`) dat label houden. Maak of wijzig deze release dus nooit met de hand: de workflow overschrijft ze.
 - De workflow controleert zelf per app: arm64, geldige ondertekening, `--zelftest` (script én ingepakte app) en of het venster open blijft.
 - Een nieuwe Mac-app toevoegen = een regel bij `matrix.include` en bij `paths` in de workflow.
 
