@@ -1,17 +1,24 @@
 # =============================================================================
-# Bouwt de Mac-app van Coördinaat Conversie v3 (Apple Silicon: M1 t/m M4)
+# Bouwt de Mac-apps van Coördinaat Conversie (Apple Silicon: M1 t/m M4)
 # =============================================================================
 # Waarom via GitHub Actions? PyInstaller kan alleen een Mac-app maken OP een
 # Mac. GitHub leent ons hier gratis een Mac met Apple Silicon-processor
-# ("runner") die de app bouwt, test en als download aanbiedt.
+# ("runner") die de apps bouwt, test en als download aanbiedt.
+#
+# Er worden twee apps gebouwd, elk in een eigen "job" (zie 'matrix' hieronder):
+#   - Coordinaat Conversie v3      (één bestand per keer)
+#   - Coordinaat Conversie Batch   (meerdere bestanden tegelijk)
 #
 # Wanneer draait dit?
 #   - automatisch als een van de Mac-bestanden wijzigt (zie 'paths' hieronder)
 #   - handmatig: tabblad Actions > "Bouw Mac-app" > knop "Run workflow"
 #
-# Waar vind ik de app?
-#   Tabblad Actions > de laatste geslaagde run > onderaan bij "Artifacts":
-#   "Coordinaat-Conversie-v3-Mac". Zie README.md voor het openen op de Mac.
+# Waar vind ik de apps?
+#   Op de Releases-pagina, in de release "mac-laatste". Die wordt na elke
+#   geslaagde build op de hoofdbranch (main) automatisch vervangen door de
+#   nieuwste versie (zie de job 'release' onderaan).
+#   Voor een build op een andere branch: tabblad Actions > de run > onderaan
+#   bij "Artifacts". Zie README.md voor het openen op de Mac.
 # =============================================================================
 name: Bouw Mac-app
 
@@ -20,6 +27,8 @@ on:
     paths:
       - coordinaat_conversie_v3_mac.py
       - coordinaat_conversie_v3_mac.spec
+      - coordinaat_conversie_batch_mac.py
+      - coordinaat_conversie_batch_mac.spec
       - coordinaat_conversie.icns
       - .github/workflows/build-mac.yml
   workflow_dispatch:
@@ -29,11 +38,30 @@ permissions:
 
 jobs:
   bouw:
+    # Een "matrix" voert dezelfde stappen meerdere keren uit, telkens met
+    # andere waarden. Zo hoeven we de stappen maar één keer te schrijven.
+    #   script : naam van het .py- en .spec-bestand (zonder extensie)
+    #   app    : naam van de app zoals die op de Mac verschijnt
+    #   zip    : naam van de download
+    strategy:
+      fail-fast: false   # als de ene app mislukt, de andere toch afwerken
+      matrix:
+        include:
+          - script: coordinaat_conversie_v3_mac
+            app: Coordinaat Conversie v3
+            zip: Coordinaat-Conversie-v3-Mac
+          - script: coordinaat_conversie_batch_mac
+            app: Coordinaat Conversie Batch
+            zip: Coordinaat-Conversie-Batch-Mac
+    name: ${{ matrix.app }}
     # macos-15 is een Apple Silicon-machine (arm64), net als een M4-Mac.
     runs-on: macos-15
+    timeout-minutes: 15
     env:
-      APP: dist/Coordinaat Conversie v3.app
-      PROGRAMMA: dist/Coordinaat Conversie v3.app/Contents/MacOS/coordinaat_conversie_v3_mac
+      SCRIPT: ${{ matrix.script }}
+      APP: dist/${{ matrix.app }}.app
+      PROGRAMMA: dist/${{ matrix.app }}.app/Contents/MacOS/${{ matrix.script }}
+      ZIP: ${{ matrix.zip }}.zip
     steps:
       - uses: actions/checkout@v4
 
@@ -53,10 +81,10 @@ jobs:
           test "$(uname -m)" = "arm64"
 
       - name: Zelftest van het script (voor het inpakken)
-        run: python coordinaat_conversie_v3_mac.py --zelftest
+        run: python "$SCRIPT.py" --zelftest
 
       - name: App bouwen met PyInstaller
-        run: pyinstaller coordinaat_conversie_v3_mac.spec --noconfirm
+        run: pyinstaller "$SCRIPT.spec" --noconfirm
 
       - name: Controle - arm64 en geldige ondertekening
         run: |
@@ -71,25 +99,81 @@ jobs:
         run: |
           open "$APP"
           sleep 15
-          pgrep -fl coordinaat_conversie_v3_mac
-          screencapture -x schermafbeelding.png || true
-          pkill -f coordinaat_conversie_v3_mac || true
+          pgrep -fl "$SCRIPT"
+          screencapture -x "schermafbeelding-$SCRIPT.png" || true
+          pkill -f "$SCRIPT" || true
 
       - name: App inpakken als zip
         # 'ditto' bewaart de Mac-eigenschappen (uitvoerrechten, symbolische
         # koppelingen, ondertekening). Een gewone zip kan de app beschadigen.
-        run: ditto -c -k --keepParent "$APP" "Coordinaat-Conversie-v3-Mac.zip"
+        run: ditto -c -k --keepParent "$APP" "$ZIP"
 
       - name: App aanbieden als download
         uses: actions/upload-artifact@v4
         with:
-          name: Coordinaat-Conversie-v3-Mac
-          path: Coordinaat-Conversie-v3-Mac.zip
+          name: ${{ matrix.zip }}
+          path: ${{ matrix.zip }}.zip
 
       - name: Schermafbeelding aanbieden (ter controle)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: schermafbeelding
-          path: schermafbeelding.png
+          name: schermafbeelding-${{ matrix.script }}
+          path: schermafbeelding-${{ matrix.script }}.png
           if-no-files-found: ignore
+
+  # ===========================================================================
+  # RELEASE: de twee zips in een vaste release zetten
+  # ===========================================================================
+  # Een "artifact" (hierboven) verdwijnt na 90 dagen. Een "release" blijft
+  # staan en heeft een vaste downloadlink. Deze job zet de twee zips daarom in
+  # de release "mac-laatste".
+  #
+  #   needs: bouw      -> draait pas als BEIDE apps gebouwd en getest zijn.
+  #                       Mislukt er één, dan blijft de oude release staan.
+  #   if: ... main     -> alleen op de hoofdbranch; een werkbranch mag de
+  #                       release niet overschrijven.
+  #   contents: write  -> alleen deze job mag in de repository schrijven
+  #                       (nodig om een release te maken). De bouw-jobs
+  #                       blijven alleen-lezen.
+  #
+  # Het is een "rollende" release: de oude wordt verwijderd en opnieuw
+  # aangemaakt, zodat de tag altijd naar de laatst gebouwde code wijst.
+  # --latest=false: de Windows-releases houden het label "Latest".
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release bijwerken
+    needs: bouw
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: mac-laatste
+    steps:
+      - name: Zips ophalen uit de bouw-jobs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Coordinaat-Conversie-*-Mac
+          merge-multiple: true
+
+      - name: Controle - zijn beide zips er?
+        run: |
+          ls -l
+          test -f Coordinaat-Conversie-v3-Mac.zip
+          test -f Coordinaat-Conversie-Batch-Mac.zip
+
+      - name: Oude release verwijderen (als die bestaat)
+        run: gh release delete "$TAG" --cleanup-tag --yes || true
+
+      - name: Nieuwe release maken
+        run: |
+          gh release create "$TAG" \
+            Coordinaat-Conversie-v3-Mac.zip \
+            Coordinaat-Conversie-Batch-Mac.zip \
+            --target "$GITHUB_SHA" \
+            --latest=false \
+            --title "Mac-apps (Apple Silicon) - laatste build" \
+            --notes "Automatisch gebouwd en getest door GitHub Actions voor Macs met Apple Silicon (M1 t/m M4). Deze release wordt bij elke nieuwe build vervangen. Zie de README voor het openen van de apps op de Mac."
