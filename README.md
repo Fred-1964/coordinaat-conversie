@@ -1,6 +1,6 @@
 # Coördinaat Converter
 
-Een eenvoudige Windows-applicatie om coördinaten te converteren tussen de meest gebruikte Belgische en internationale coördinatenstelsels:
+Een eenvoudige applicatie (Windows, en de Single-versie ook voor Mac) om coördinaten te converteren tussen de meest gebruikte Belgische en internationale coördinatenstelsels:
 
 - **L72** – Belgisch Lambert 72
 - **UTM31** – Universal Transverse Mercator zone 31
@@ -15,6 +15,7 @@ Een eenvoudige Windows-applicatie om coördinaten te converteren tussen de meest
 |---|---|
 | **Single** (`coordinaat_conversie_v3.exe`) | Converteert één bestand per keer. Ondersteunt ook reductievlakcorrectie (LAT/TAW). |
 | **Batch** (`coordinaat_conversie_batch.exe`) | Converteert meerdere bestanden tegelijk in één keer. |
+| **Single voor Mac** (`Coordinaat Conversie v3.app`) | Zelfde als Single, voor Macs met Apple Silicon (M1 t/m M4). |
 
 ---
 
@@ -23,6 +24,28 @@ Een eenvoudige Windows-applicatie om coördinaten te converteren tussen de meest
 Ga naar de [Releases](../../releases) pagina en download de gewenste `.exe`.
 
 Geen installatie nodig — gewoon dubbelklikken en starten.
+
+### Mac-versie (Apple Silicon: M1, M2, M3, M4)
+
+De Mac-app wordt automatisch gebouwd door GitHub. Python hoeft niet op de Mac te staan.
+
+1. Ga naar het tabblad [Actions](../../actions/workflows/build-mac.yml) en open de bovenste geslaagde run (groen vinkje).
+2. Download onderaan bij **Artifacts** het bestand `Coordinaat-Conversie-v3-Mac` (je moet ingelogd zijn op GitHub).
+3. Pak het uit (twee keer dubbelklikken: er zit een zip in een zip) en sleep `Coordinaat Conversie v3` naar de map **Apps**.
+
+**Eerste keer openen.** De app is niet door Apple gekeurd (dat vereist een betaald ontwikkelaarsaccount), dus macOS houdt hem de eerste keer tegen:
+
+1. Dubbelklik op de app en klik in de melding op **Gereed**.
+2. Open **Systeeminstellingen > Privacy en beveiliging**, scrol naar beneden en klik bij de melding over de app op **Open toch**.
+3. Bevestig met je wachtwoord of Touch ID. Daarna start de app voortaan gewoon.
+
+Lukt dat niet, dan kan het ook via de Terminal:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Coordinaat Conversie v3.app"
+```
+
+De app werkt niet op oudere Macs met een Intel-processor.
 
 ---
 
