@@ -1,17 +1,22 @@
 # =============================================================================
-# Bouwt de Mac-app van Coördinaat Conversie v3 (Apple Silicon: M1 t/m M4)
+# Bouwt de Mac-apps van Coördinaat Conversie (Apple Silicon: M1 t/m M4)
 # =============================================================================
 # Waarom via GitHub Actions? PyInstaller kan alleen een Mac-app maken OP een
 # Mac. GitHub leent ons hier gratis een Mac met Apple Silicon-processor
-# ("runner") die de app bouwt, test en als download aanbiedt.
+# ("runner") die de apps bouwt, test en als download aanbiedt.
+#
+# Er worden twee apps gebouwd, elk in een eigen "job" (zie 'matrix' hieronder):
+#   - Coordinaat Conversie v3      (één bestand per keer)
+#   - Coordinaat Conversie Batch   (meerdere bestanden tegelijk)
 #
 # Wanneer draait dit?
 #   - automatisch als een van de Mac-bestanden wijzigt (zie 'paths' hieronder)
 #   - handmatig: tabblad Actions > "Bouw Mac-app" > knop "Run workflow"
 #
-# Waar vind ik de app?
+# Waar vind ik de apps?
 #   Tabblad Actions > de laatste geslaagde run > onderaan bij "Artifacts":
-#   "Coordinaat-Conversie-v3-Mac". Zie README.md voor het openen op de Mac.
+#   "Coordinaat-Conversie-v3-Mac" en "Coordinaat-Conversie-Batch-Mac".
+#   Zie README.md voor het openen op de Mac.
 # =============================================================================
 name: Bouw Mac-app
 
@@ -20,6 +25,8 @@ on:
     paths:
       - coordinaat_conversie_v3_mac.py
       - coordinaat_conversie_v3_mac.spec
+      - coordinaat_conversie_batch_mac.py
+      - coordinaat_conversie_batch_mac.spec
       - coordinaat_conversie.icns
       - .github/workflows/build-mac.yml
   workflow_dispatch:
@@ -29,11 +36,30 @@ permissions:
 
 jobs:
   bouw:
+    # Een "matrix" voert dezelfde stappen meerdere keren uit, telkens met
+    # andere waarden. Zo hoeven we de stappen maar één keer te schrijven.
+    #   script : naam van het .py- en .spec-bestand (zonder extensie)
+    #   app    : naam van de app zoals die op de Mac verschijnt
+    #   zip    : naam van de download
+    strategy:
+      fail-fast: false   # als de ene app mislukt, de andere toch afwerken
+      matrix:
+        include:
+          - script: coordinaat_conversie_v3_mac
+            app: Coordinaat Conversie v3
+            zip: Coordinaat-Conversie-v3-Mac
+          - script: coordinaat_conversie_batch_mac
+            app: Coordinaat Conversie Batch
+            zip: Coordinaat-Conversie-Batch-Mac
+    name: ${{ matrix.app }}
     # macos-15 is een Apple Silicon-machine (arm64), net als een M4-Mac.
     runs-on: macos-15
+    timeout-minutes: 15
     env:
-      APP: dist/Coordinaat Conversie v3.app
-      PROGRAMMA: dist/Coordinaat Conversie v3.app/Contents/MacOS/coordinaat_conversie_v3_mac
+      SCRIPT: ${{ matrix.script }}
+      APP: dist/${{ matrix.app }}.app
+      PROGRAMMA: dist/${{ matrix.app }}.app/Contents/MacOS/${{ matrix.script }}
+      ZIP: ${{ matrix.zip }}.zip
     steps:
       - uses: actions/checkout@v4
 
@@ -53,10 +79,10 @@ jobs:
           test "$(uname -m)" = "arm64"
 
       - name: Zelftest van het script (voor het inpakken)
-        run: python coordinaat_conversie_v3_mac.py --zelftest
+        run: python "$SCRIPT.py" --zelftest
 
       - name: App bouwen met PyInstaller
-        run: pyinstaller coordinaat_conversie_v3_mac.spec --noconfirm
+        run: pyinstaller "$SCRIPT.spec" --noconfirm
 
       - name: Controle - arm64 en geldige ondertekening
         run: |
@@ -71,25 +97,25 @@ jobs:
         run: |
           open "$APP"
           sleep 15
-          pgrep -fl coordinaat_conversie_v3_mac
-          screencapture -x schermafbeelding.png || true
-          pkill -f coordinaat_conversie_v3_mac || true
+          pgrep -fl "$SCRIPT"
+          screencapture -x "schermafbeelding-$SCRIPT.png" || true
+          pkill -f "$SCRIPT" || true
 
       - name: App inpakken als zip
         # 'ditto' bewaart de Mac-eigenschappen (uitvoerrechten, symbolische
         # koppelingen, ondertekening). Een gewone zip kan de app beschadigen.
-        run: ditto -c -k --keepParent "$APP" "Coordinaat-Conversie-v3-Mac.zip"
+        run: ditto -c -k --keepParent "$APP" "$ZIP"
 
       - name: App aanbieden als download
         uses: actions/upload-artifact@v4
         with:
-          name: Coordinaat-Conversie-v3-Mac
-          path: Coordinaat-Conversie-v3-Mac.zip
+          name: ${{ matrix.zip }}
+          path: ${{ matrix.zip }}.zip
 
       - name: Schermafbeelding aanbieden (ter controle)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: schermafbeelding
-          path: schermafbeelding.png
+          name: schermafbeelding-${{ matrix.script }}
+          path: schermafbeelding-${{ matrix.script }}.png
           if-no-files-found: ignore
