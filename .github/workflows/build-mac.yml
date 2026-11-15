@@ -1,0 +1,95 @@
+# =============================================================================
+# Bouwt de Mac-app van Coördinaat Conversie v3 (Apple Silicon: M1 t/m M4)
+# =============================================================================
+# Waarom via GitHub Actions? PyInstaller kan alleen een Mac-app maken OP een
+# Mac. GitHub leent ons hier gratis een Mac met Apple Silicon-processor
+# ("runner") die de app bouwt, test en als download aanbiedt.
+#
+# Wanneer draait dit?
+#   - automatisch als een van de Mac-bestanden wijzigt (zie 'paths' hieronder)
+#   - handmatig: tabblad Actions > "Bouw Mac-app" > knop "Run workflow"
+#
+# Waar vind ik de app?
+#   Tabblad Actions > de laatste geslaagde run > onderaan bij "Artifacts":
+#   "Coordinaat-Conversie-v3-Mac". Zie README.md voor het openen op de Mac.
+# =============================================================================
+name: Bouw Mac-app
+
+on:
+  push:
+    paths:
+      - coordinaat_conversie_v3_mac.py
+      - coordinaat_conversie_v3_mac.spec
+      - coordinaat_conversie.icns
+      - .github/workflows/build-mac.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bouw:
+    # macos-15 is een Apple Silicon-machine (arm64), net als een M4-Mac.
+    runs-on: macos-15
+    env:
+      APP: dist/Coordinaat Conversie v3.app
+      PROGRAMMA: dist/Coordinaat Conversie v3.app/Contents/MacOS/coordinaat_conversie_v3_mac
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Bibliotheken installeren
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas pyproj shapely pyinstaller
+          pip list
+
+      - name: Controle - is dit een Apple Silicon-machine?
+        run: |
+          uname -m
+          test "$(uname -m)" = "arm64"
+
+      - name: Zelftest van het script (voor het inpakken)
+        run: python coordinaat_conversie_v3_mac.py --zelftest
+
+      - name: App bouwen met PyInstaller
+        run: pyinstaller coordinaat_conversie_v3_mac.spec --noconfirm
+
+      - name: Controle - arm64 en geldige ondertekening
+        run: |
+          file "$PROGRAMMA"
+          file "$PROGRAMMA" | grep -q arm64
+          codesign --verify --deep --verbose=2 "$APP"
+
+      - name: Zelftest van de ingepakte app
+        run: '"$PROGRAMMA" --zelftest'
+
+      - name: Starttest - blijft het venster open?
+        run: |
+          open "$APP"
+          sleep 15
+          pgrep -fl coordinaat_conversie_v3_mac
+          screencapture -x schermafbeelding.png || true
+          pkill -f coordinaat_conversie_v3_mac || true
+
+      - name: App inpakken als zip
+        # 'ditto' bewaart de Mac-eigenschappen (uitvoerrechten, symbolische
+        # koppelingen, ondertekening). Een gewone zip kan de app beschadigen.
+        run: ditto -c -k --keepParent "$APP" "Coordinaat-Conversie-v3-Mac.zip"
+
+      - name: App aanbieden als download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coordinaat-Conversie-v3-Mac
+          path: Coordinaat-Conversie-v3-Mac.zip
+
+      - name: Schermafbeelding aanbieden (ter controle)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schermafbeelding
+          path: schermafbeelding.png
+          if-no-files-found: ignore
